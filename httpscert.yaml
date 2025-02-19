@@ -12,36 +12,48 @@
       apt:
         upgrade: dist
 
-    - name: Install Certbot and dependencies
+    - name: Check if Apache is running
+      command: systemctl is-active apache2
+      register: apache_status
+      ignore_errors: yes
+
+    - name: Check if Nginx is running
+      command: systemctl is-active nginx
+      register: nginx_status
+      ignore_errors: yes
+
+    - name: Install Certbot and dependencies if Apache or Nginx is running
       apt:
         name:
           - certbot
           - python3-certbot-apache  # For Apache
           - python3-certbot-nginx   # For Nginx
         state: present
+      when: apache_status.stdout == "active" or nginx_status.stdout == "active"
 
     - name: Obtain SSL certificate from Let's Encrypt (Apache)
       command: certbot --apache --non-interactive --agree-tos --email admin@example.com -d yourdomain.com
-      when: ansible_facts.services['apache2'] is defined
+      when: apache_status.stdout == "active"
 
     - name: Obtain SSL certificate from Let's Encrypt (Nginx)
       command: certbot --nginx --non-interactive --agree-tos --email admin@example.com -d yourdomain.com
-      when: ansible_facts.services['nginx'] is defined
+      when: nginx_status.stdout == "active"
 
     - name: Enable automatic renewal of SSL certificates
       cron:
         name: "Renew Let's Encrypt SSL"
         job: "certbot renew --quiet"
         special_time: daily
+      when: apache_status.stdout == "active" or nginx_status.stdout == "active"
 
     - name: Restart Apache if installed
       service:
         name: apache2
         state: restarted
-      when: ansible_facts.services['apache2'] is defined
+      when: apache_status.stdout == "active"
 
     - name: Restart Nginx if installed
       service:
         name: nginx
         state: restarted
-      when: ansible_facts.services['nginx'] is defined
+      when: nginx_status.stdout == "active"

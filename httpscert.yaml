@@ -1,0 +1,47 @@
+---
+- name: Update Debian Machines & Install SSL Certificates
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Update APT package list
+      apt:
+        update_cache: yes
+
+    - name: Upgrade all packages
+      apt:
+        upgrade: dist
+
+    - name: Install Certbot and dependencies
+      apt:
+        name:
+          - certbot
+          - python3-certbot-apache  # For Apache
+          - python3-certbot-nginx   # For Nginx
+        state: present
+
+    - name: Obtain SSL certificate from Let's Encrypt (Apache)
+      command: certbot --apache --non-interactive --agree-tos --email admin@example.com -d yourdomain.com
+      when: ansible_facts.services['apache2'] is defined
+
+    - name: Obtain SSL certificate from Let's Encrypt (Nginx)
+      command: certbot --nginx --non-interactive --agree-tos --email admin@example.com -d yourdomain.com
+      when: ansible_facts.services['nginx'] is defined
+
+    - name: Enable automatic renewal of SSL certificates
+      cron:
+        name: "Renew Let's Encrypt SSL"
+        job: "certbot renew --quiet"
+        special_time: daily
+
+    - name: Restart Apache if installed
+      service:
+        name: apache2
+        state: restarted
+      when: ansible_facts.services['apache2'] is defined
+
+    - name: Restart Nginx if installed
+      service:
+        name: nginx
+        state: restarted
+      when: ansible_facts.services['nginx'] is defined
